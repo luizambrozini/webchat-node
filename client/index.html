@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebSocket Chat</title>
+  <!-- Adicionando a referência ao Bootstrap CSS -->
+  <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    /* Adicionando estilos personalizados para as mensagens */
+    .message-container {
+      margin-bottom: 5px;
+    }
+
+    .message-sender {
+      background-color: #4caf50;
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px;
+      margin-left: auto; /* Alinha à direita usando margem automática à esquerda */
+      max-width: 40%; /* Define uma largura máxima para a mensagem do remetente */
+    }
+
+    .message-other {
+      background-color: #f0f0f0;
+      border-radius: 8px;
+      padding: 8px;
+      margin-right: auto; /* Alinha à esquerda usando margem automática à direita */
+      max-width: 40%; /* Define uma largura máxima para a mensagem de outros */
+    }
+
+    .typing-indicator {
+      font-style: italic;
+      color: #888;
+    }
+  </style>
+</head>
+<body class="container-fluid mt-5">
+  <div class="card d-flex flex-column vh-100">
+    <div class="card-header">
+      <h5 class="card-title">WebSocket Chat</h5>
+    </div>
+    <div class="card-body flex-grow-1 overflow-auto" id="chat-output">
+      <!-- Mensagens serão exibidas aqui -->
+    </div>
+    <div class="card-footer">
+      <div class="input-group">
+        <input type="text" id="chat-input" class="form-control" placeholder="Digite sua mensagem..." oninput="handleTyping()" onkeydown="handleKeyDown(event)" onblur="handleBlur()">
+        <div class="input-group-append">
+          <button class="btn btn-primary" onclick="sendMessage()">Enviar</button>
+        </div>
+      </div>
+      <div id="typing-status" class="typing-indicator"></div>
+    </div>
+  </div>
+
+  <!-- Adicionando a referência ao Bootstrap JS e ao jQuery (necessário para Bootstrap JS) -->
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+
+  <script>
+    const socket = new WebSocket('ws://localhost:4000');
+    let isTyping = false;
+    let typingAnimationInterval;
+    let typingUserId;
+    let myId
+
+    socket.addEventListener('message', (event) => {
+      const chatOutput = document.getElementById('chat-output');
+      const typingStatus = document.getElementById('typing-status');
+      const chatInput = document.getElementById('chat-input');
+      const message = event.data;
+
+      console.log(event.data)
+
+      if(message.includes('Seu ID é')) {
+        myId = message.split(":")[1].trim()
+        console.log(myId)
+      } else if (message.includes(': digitando')) {
+        typingStatus.hidden = false
+        const typingInfo = message.split(':');
+        typingUserId = typingInfo[0];
+        startTypingAnimation();
+      } else {
+        typingStatus.hidden = true
+        let isSender;
+        if(message.split(":")[0] == myId) {
+            isSender = 'message-sender'
+        } else {
+            isSender = 'message-other'
+        }
+
+        const messageClass = isSender;
+
+        const typingInfo = message.split(':');
+        typingUserId = typingInfo[0];
+        const mensagem = message.split(':')[2]
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message-container ${messageClass}`;
+        messageDiv.innerHTML = `<div><p>${typingUserId}: ${mensagem}<p> <p class='text-end text-right'> ${new Date().toLocaleTimeString()}<p></div>`;
+
+        chatOutput.appendChild(messageDiv);
+        chatOutput.scrollTop = chatOutput.scrollHeight;
+
+        if (isTyping) {
+          isTyping = false;
+          clearInterval(typingAnimationInterval);
+          updateTypingStatus();
+        }
+      }
+    });
+
+    function sendMessage() {
+      const chatInput = document.getElementById('chat-input');
+      const message = chatInput.value.trim();
+
+      if (message !== '') {
+        socket.send(`mensagem: ${message}`);
+        chatInput.value = '';
+      }
+
+      handleBlur()
+    }
+
+    function handleTyping() {
+      if (!isTyping) {
+        isTyping = true;
+        socket.send(`digitando`);
+        startTypingAnimation();
+        updateTypingStatus();
+      }
+    }
+
+    function startTypingAnimation() {
+      let dotCount = 1;
+      const typingStatus = document.getElementById('typing-status');
+      
+      if(typingUserId == myId) {
+            typingStatus.textContent = `Você está digitando`+'.'.repeat(dotCount);
+        } else {
+            typingStatus.textContent = `${typingUserId} está digitando`+'.'.repeat(dotCount);
+        }
+
+
+      typingAnimationInterval = setInterval(() => {
+        const typingStatus = document.getElementById('typing-status');
+        if(typingUserId == myId) {
+            typingStatus.textContent = `Você está digitando`+'.'.repeat(dotCount);
+        } else {
+            typingStatus.textContent = `${typingUserId} está digitando`+'.'.repeat(dotCount);
+        }
+        dotCount = (dotCount % 3) + 1; // 1, 2, 3, 1, 2, 3...
+      }, 800);
+      
+      
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      }
+    }
+
+    function handleBlur() {
+      if (isTyping) {
+        isTyping = false;
+        clearInterval(typingAnimationInterval);
+        updateTypingStatus();
+      }
+    }
+
+    function updateTypingStatus() {
+      const typingStatus = document.getElementById('typing-status');
+
+      if (isTyping) {
+        typingStatus.textContent = `${typingUserId} está digitando`;
+      } else {
+        typingStatus.textContent = '';
+      }
+    }
+  </script>
+</body>
+</html>
